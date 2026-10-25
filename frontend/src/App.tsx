@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ShieldCheck, LockKeyhole, FileText, Upload, Search, LogOut, Users, Activity, RefreshCw, Download, Share2, X, CheckCircle2, AlertCircle } from 'lucide-react'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 type User = { id:number; email:string; role:string }
 type Doc = { id:number; name:string; owner_email:string; content_type:string; size_bytes:number; sha256:string; created_at:string }
 type Audit = { id:number; action:string; actor_id:number|null; document_id:number|null; outcome:string; created_at:string; event_hash:string }
