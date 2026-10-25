@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ShieldCheck, LockKeyhole, FileText, Upload, Search, LogOut, Users, Activity, RefreshCw, Download, Share2, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react'
 
-const API = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000' : '/api')
+const API = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://trustvault-api-ziwt.onrender.com')
 type User = { id:number; email:string; role:string }
 type Doc = { id:number; name:string; owner_email:string; content_type:string; size_bytes:number; sha256:string; created_at:string }
 type Audit = { id:number; action:string; actor_id:number|null; document_id:number|null; outcome:string; created_at:string; event_hash:string }
@@ -30,8 +30,13 @@ const TOKEN_KEY = 'trustvault_session_token'
 async function api(path:string, init:RequestInit={}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
   const headers = new Headers(init.headers || {})
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
+  if (token) {
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+    if (!headers.has('X-Session-Token')) {
+      headers.set('X-Session-Token', token)
+    }
   }
   const response = await fetch(`${API}${path}`, { ...init, headers, credentials:'include' })
   const data = await response.json().catch(()=>({detail:'Unexpected server response'}))
@@ -121,7 +126,10 @@ function App() {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
       const headers = new Headers()
-      if (token) headers.set('Authorization', `Bearer ${token}`)
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`)
+        headers.set('X-Session-Token', token)
+      }
       const response = await fetch(`${API}/documents/${doc.id}/download`,{ headers, credentials:'include' })
       if(!response.ok) { const d=await response.json().catch(()=>({})); throw new Error(d.detail || 'Download failed') }
       const blob = await response.blob(); const url = URL.createObjectURL(blob)
@@ -195,12 +203,18 @@ if (!user) {
       {mode === 'login' && (
         <div className="demo-login" style={{ marginTop: '18px' }}>
           <p className="muted" style={{ marginBottom: '10px' }}>
-            Demo access — hover over an account to fill its credentials
+            Demo access — click or hover over an account to fill its credentials
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
             <button
               type="button"
               className="link-button"
+              onClick={() => {
+                setEmail('admin@trustvault.com')
+                setPassword('Rockstar@1')
+                setError('')
+                setMessage('')
+              }}
               onMouseEnter={() => {
                 setEmail('admin@trustvault.com')
                 setPassword('Rockstar@1')
@@ -218,11 +232,17 @@ if (!user) {
               <ShieldCheck size={20} />
               <strong>Admin Account</strong>
               <span style={{ fontSize: '12px' }}>Admin ID &amp; password</span>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>Hover to autofill</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>Click or hover to autofill</span>
             </button>
             <button
               type="button"
               className="link-button"
+              onClick={() => {
+                setEmail('owner@trustvault.com')
+                setPassword('Coolguy@1')
+                setError('')
+                setMessage('')
+              }}
               onMouseEnter={() => {
                 setEmail('owner@trustvault.com')
                 setPassword('Coolguy@1')
@@ -240,7 +260,7 @@ if (!user) {
               <Users size={20} />
               <strong>User Account</strong>
               <span style={{ fontSize: '12px' }}>User ID &amp; password</span>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>Hover to autofill</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>Click or hover to autofill</span>
             </button>
           </div>
         </div>

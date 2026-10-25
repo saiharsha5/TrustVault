@@ -101,3 +101,31 @@ def test_upload_sanitizes_filename(client):
     assert "/" not in uploaded_name
     assert "\\" not in uploaded_name
     assert ".." not in uploaded_name
+
+
+def test_bearer_token_authorization(client):
+    register(client, "bearertest@example.com")
+    res = client.post("/auth/login", json={"email": "bearertest@example.com", "password": "long-enough-test-password"})
+    assert res.status_code == 200
+    token = res.json().get("token")
+    assert token is not None
+
+    # Clear test client cookies to simulate cross-origin environment where cookies are blocked
+    client.cookies.clear()
+
+    # Unauthenticated request without token should fail
+    assert client.get("/documents").status_code == 401
+
+    # Request with Bearer token should succeed
+    r_docs = client.get("/documents", headers={"Authorization": f"Bearer {token}"})
+    assert r_docs.status_code == 200
+    assert r_docs.json() == []
+
+    # /auth/me should succeed with Bearer token
+    r_me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r_me.status_code == 200
+    assert r_me.json()["email"] == "bearertest@example.com"
+
+    # Request with invalid token should fail
+    r_invalid = client.get("/documents", headers={"Authorization": "Bearer invalid.token.value"})
+    assert r_invalid.status_code == 401
