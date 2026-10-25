@@ -15,7 +15,7 @@ async function api(path:string, init:RequestInit={}) {
 function App() {
   const [user,setUser] = useState<User|null>(null)
   const [email,setEmail] = useState("owner@trustvault.com")
-  const [password,setPassword] = useState('')
+  const [password,setPassword] = useState('Demo@user1')
   const [mode,setMode] = useState<'login'|'register'>('login')
   const [docs,setDocs] = useState<Doc[]>([])
   const [audits,setAudits] = useState<Audit[]>([])
