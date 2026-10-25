@@ -212,7 +212,7 @@ def login(
         create_session_token(user.id),
         httponly=True,
         secure=settings.session_https_only,
-        samesite="lax",
+        samesite="none" if settings.session_https_only else "lax",
         max_age=60 * 60 * 8,
         path="/",
     )
