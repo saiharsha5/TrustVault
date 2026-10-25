@@ -137,7 +137,23 @@ if (!user) return (
           <LockKeyhole size={16}/>
         </button>
       </form>
-
+      {mode === 'login' && (
+  <div className="demo-login">
+    <p className="muted">Want to try the demo?</p>
+    <button
+      type="button"
+      className="link-button"
+      onClick={() => {
+        setEmail('owner@trustvault.com')
+        setPassword('Demo@user1')
+        setError('')
+        setMessage('')
+      }}
+    >
+      Use Demo Account
+    </button>
+  </div>
+)}
       {mode === 'login' && (
         <div className="demo-login">
           <p className="muted">Want to try the demo?</p>
