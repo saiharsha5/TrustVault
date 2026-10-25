@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ShieldCheck, LockKeyhole, FileText, Upload, Search, LogOut, Users, Activity, RefreshCw, Download, Share2, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react'
 
-const API = import.meta.env.VITE_API_BASE || '/api'
+const API = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000' : '/api')
 type User = { id:number; email:string; role:string }
 type Doc = { id:number; name:string; owner_email:string; content_type:string; size_bytes:number; sha256:string; created_at:string }
 type Audit = { id:number; action:string; actor_id:number|null; document_id:number|null; outcome:string; created_at:string; event_hash:string }
@@ -25,8 +25,15 @@ function readableError(detail: unknown, fallback: string): string {
   return fallback
 }
 
+const TOKEN_KEY = 'trustvault_session_token'
+
 async function api(path:string, init:RequestInit={}) {
-  const response = await fetch(`${API}${path}`, { ...init, credentials:'include' })
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+  const headers = new Headers(init.headers || {})
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  const response = await fetch(`${API}${path}`, { ...init, headers, credentials:'include' })
   const data = await response.json().catch(()=>({detail:'Unexpected server response'}))
   if (!response.ok) {
     throw new Error(readableError(data?.detail, `Request failed (${response.status})`))
@@ -57,17 +64,39 @@ function App() {
       if (user.role === 'admin') setAudits(await api('/audit/events?limit=100'))
     } catch(e:any) { setError(e.message) } finally { setBusy(false) }
   }
-  useEffect(()=>{ api('/auth/me').then(setUser).catch(()=>setUser(null)) },[])
+  useEffect(()=>{
+    api('/auth/me')
+      .then(setUser)
+      .catch(()=>{
+        localStorage.removeItem(TOKEN_KEY)
+        setUser(null)
+      })
+  },[])
   useEffect(()=>{ if(user) refresh() },[user?.id])
   async function auth(e:FormEvent) {
     e.preventDefault(); setError(''); setMessage('')
     try {
       if(mode==='register') await api('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})})
       const result = await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})})
+      if (result.token) {
+        localStorage.setItem(TOKEN_KEY, result.token)
+      }
       setUser(result.user); setMessage('Welcome to TrustVault.')
     } catch(e:any) { setError(e.message) }
   }
-  async function logout() { try { await api('/auth/logout',{method:'POST'}); setUser(null); setDocs([]); setAudits([]); setMessage('Signed out securely.') } catch(e:any) { setError(e.message) } }
+  async function logout() {
+    try {
+      await api('/auth/logout',{method:'POST'})
+    } catch(e:any) {
+      setError(e.message)
+    } finally {
+      localStorage.removeItem(TOKEN_KEY)
+      setUser(null)
+      setDocs([])
+      setAudits([])
+      setMessage('Signed out securely.')
+    }
+  }
   async function upload(e:FormEvent<HTMLFormElement>) {
     e.preventDefault(); setError(''); setMessage('')
     const form = e.currentTarget
@@ -90,7 +119,10 @@ function App() {
   }
   async function download(doc:Doc) {
     try {
-      const response = await fetch(`${API}/documents/${doc.id}/download`,{credentials:'include'})
+      const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+      const headers = new Headers()
+      if (token) headers.set('Authorization', `Bearer ${token}`)
+      const response = await fetch(`${API}/documents/${doc.id}/download`,{ headers, credentials:'include' })
       if(!response.ok) { const d=await response.json().catch(()=>({})); throw new Error(d.detail || 'Download failed') }
       const blob = await response.blob(); const url = URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href=url; a.download=doc.name; a.click(); URL.revokeObjectURL(url)

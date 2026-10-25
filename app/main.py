@@ -207,12 +207,19 @@ def login(
             detail="Invalid email or password",
         )
 
+    token = create_session_token(user.id)
+    is_https = (
+        settings.session_https_only
+        or request.url.scheme == "https"
+        or request.headers.get("x-forwarded-proto") == "https"
+    )
+
     response.set_cookie(
         COOKIE_NAME,
-        create_session_token(user.id),
+        token,
         httponly=True,
-        secure=settings.session_https_only,
-        samesite="none" if settings.session_https_only else "lax",
+        secure=is_https,
+        samesite="none" if is_https else "lax",
         max_age=60 * 60 * 8,
         path="/",
     )
@@ -230,6 +237,7 @@ def login(
 
     return {
         "message": "Login successful",
+        "token": token,
         "user": UserOut.model_validate(user).model_dump(
             mode="json"
         ),
@@ -239,13 +247,24 @@ def login(
 @app.post("/auth/logout")
 def logout(
     response: Response,
+    request: Request,
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
     append_audit(db, user.id, "auth.logout")
     db.commit()
 
-    response.delete_cookie(COOKIE_NAME, path="/")
+    is_https = (
+        settings.session_https_only
+        or request.url.scheme == "https"
+        or request.headers.get("x-forwarded-proto") == "https"
+    )
+    response.delete_cookie(
+        COOKIE_NAME,
+        path="/",
+        secure=is_https,
+        samesite="none" if is_https else "lax",
+    )
 
     return {"message": "Logged out"}
 
