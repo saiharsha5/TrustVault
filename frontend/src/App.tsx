@@ -6,10 +6,31 @@ type User = { id:number; email:string; role:string }
 type Doc = { id:number; name:string; owner_email:string; content_type:string; size_bytes:number; sha256:string; created_at:string }
 type Audit = { id:number; action:string; actor_id:number|null; document_id:number|null; outcome:string; created_at:string; event_hash:string }
 
+function readableError(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map((item: any) => {
+      if (typeof item === 'string') return item
+      const field = Array.isArray(item?.loc) ? item.loc.filter((part: unknown) => part !== 'body').join('.') : ''
+      const message = typeof item?.msg === 'string' ? item.msg : JSON.stringify(item)
+      return field ? `${field}: ${message}` : message
+    }).join('; ')
+  }
+  if (detail && typeof detail === 'object') {
+    const obj = detail as Record<string, unknown>
+    if (typeof obj.message === 'string') return obj.message
+    if (typeof obj.msg === 'string') return obj.msg
+    return JSON.stringify(detail)
+  }
+  return fallback
+}
+
 async function api(path:string, init:RequestInit={}) {
   const response = await fetch(`${API}${path}`, { ...init, credentials:'include' })
   const data = await response.json().catch(()=>({detail:'Unexpected server response'}))
-  if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`)
+  if (!response.ok) {
+    throw new Error(readableError(data?.detail, `Request failed (${response.status})`))
+  }
   return data
 }
 function App() {
