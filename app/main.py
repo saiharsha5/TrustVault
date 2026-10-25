@@ -675,7 +675,7 @@ def bootstrap_demo_users():
 
     creds = [
         (
-            "admin@trustvault.local",
+            "admin@trustvault.com",
             settings.bootstrap_admin_password,
             "admin",
         ),
@@ -685,7 +685,7 @@ def bootstrap_demo_users():
             "user",
         ),
         (
-            "viewer@trustvault.local",
+            "viewer@trustvault.com",
             settings.bootstrap_viewer_password,
             "user",
         ),
