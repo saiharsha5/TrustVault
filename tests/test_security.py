@@ -129,3 +129,40 @@ def test_bearer_token_authorization(client):
     # Request with invalid token should fail
     r_invalid = client.get("/documents", headers={"Authorization": "Bearer invalid.token.value"})
     assert r_invalid.status_code == 401
+
+
+def test_admin_panel_endpoints(client):
+    register(client, "admin_panel@example.com")
+    from app.db import SessionLocal
+    from app.models import User
+    with SessionLocal() as db:
+        user = db.query(User).filter_by(email="admin_panel@example.com").first()
+        user.role = "admin"
+        db.commit()
+
+    login(client, "admin_panel@example.com")
+    res_overview = client.get("/admin/overview")
+    assert res_overview.status_code == 200
+    assert "stats" in res_overview.json()
+
+    res_docs = client.get("/admin/documents")
+    assert res_docs.status_code == 200
+    assert isinstance(res_docs.json(), list)
+
+    res_grants = client.get("/admin/grants")
+    assert res_grants.status_code == 200
+    assert isinstance(res_grants.json(), list)
+
+    res_users = client.get("/admin/users")
+    assert res_users.status_code == 200
+    assert isinstance(res_users.json(), list)
+
+
+def test_non_admin_cannot_access_admin_endpoints(client):
+    register(client, "regular_user@example.com")
+    login(client, "regular_user@example.com")
+
+    assert client.get("/admin/overview").status_code == 403
+    assert client.get("/admin/documents").status_code == 403
+    assert client.get("/admin/grants").status_code == 403
+    assert client.get("/admin/users").status_code == 403

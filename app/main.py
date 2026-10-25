@@ -691,6 +691,119 @@ def audit_verify(
     return verify_audit_chain(db)
 
 
+@app.get("/admin/overview")
+def admin_overview(
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    total_docs = db.query(Document).count()
+    total_users = db.query(User).count()
+    total_grants = db.query(DocumentGrant).filter_by(active=True).count()
+    total_audits = db.query(AuditEvent).count()
+    total_bytes = db.query(Document).with_entities(Document.size_bytes).all()
+    storage_sum = sum(b[0] for b in total_bytes) if total_bytes else 0
+
+    chain = verify_audit_chain(db)
+
+    return {
+        "stats": {
+            "total_documents": total_docs,
+            "total_users": total_users,
+            "total_grants": total_grants,
+            "total_audits": total_audits,
+            "total_storage_bytes": storage_sum,
+        },
+        "chain": chain,
+    }
+
+
+@app.get("/admin/documents")
+def admin_list_documents(
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    docs = db.query(Document).order_by(Document.id.desc()).all()
+    results = []
+    for doc in docs:
+        is_owner = (doc.owner_id == admin.id)
+        has_grant = (
+            db.query(DocumentGrant)
+            .filter_by(document_id=doc.id, user_id=admin.id, active=True)
+            .first()
+            is not None
+        )
+        active_grants = (
+            db.query(DocumentGrant)
+            .filter_by(document_id=doc.id, active=True)
+            .count()
+        )
+        results.append(
+            {
+                "id": doc.id,
+                "name": doc.original_name,
+                "owner_id": doc.owner_id,
+                "owner_email": doc.owner.email,
+                "content_type": doc.content_type,
+                "size_bytes": doc.size_bytes,
+                "sha256": doc.sha256,
+                "created_at": doc.created_at,
+                "can_download": is_owner or has_grant,
+                "is_owner": is_owner,
+                "has_grant": has_grant,
+                "active_grants": active_grants,
+            }
+        )
+    return results
+
+
+@app.get("/admin/grants")
+def admin_list_grants(
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    grants = (
+        db.query(DocumentGrant, Document, User)
+        .join(Document, Document.id == DocumentGrant.document_id)
+        .join(User, User.id == DocumentGrant.user_id)
+        .order_by(DocumentGrant.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": grant.id,
+            "document_id": doc.id,
+            "document_name": doc.original_name,
+            "owner_email": doc.owner.email,
+            "target_user_id": target.id,
+            "target_email": target.email,
+            "active": grant.active,
+            "created_at": grant.created_at,
+        }
+        for grant, doc, target in grants
+    ]
+
+
+@app.get("/admin/users")
+def admin_list_users(
+    admin: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+):
+    users = db.query(User).order_by(User.id.asc()).all()
+    results = []
+    for u in users:
+        doc_count = db.query(Document).filter_by(owner_id=u.id).count()
+        results.append(
+            {
+                "id": u.id,
+                "email": u.email,
+                "role": u.role,
+                "created_at": u.created_at,
+                "documents_count": doc_count,
+            }
+        )
+    return results
+
+
 def bootstrap_demo_users():
     if not settings.bootstrap_demo:
         return
